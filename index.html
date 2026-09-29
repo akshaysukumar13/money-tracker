@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Money Tracker</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f4f7fb;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#172033}
+.app{max-width:800px;margin:auto;padding:18px}.title{font-size:28px;font-weight:800}.sub{color:#6b7280;margin-bottom:16px}
+.card{background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:16px;margin:12px 0}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.stat{background:#f8fafc;border:1px solid #e5e7eb;border-radius:14px;padding:13px}.label{font-size:12px;color:#6b7280}.num{font-size:20px;font-weight:800;margin-top:4px;overflow-wrap:anywhere}.green{color:#16a34a}.red{color:#dc2626}
+.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}input,select,button{width:100%;height:46px;border-radius:11px;border:1px solid #dbe0e8;padding:8px 12px;font-size:16px;background:#fff}button{font-weight:700;cursor:pointer}.primary{background:#2563eb;color:#fff;border-color:#2563eb}
+.month{display:flex;align-items:center;justify-content:space-between}.month button{width:46px}
+.day{background:#f8fafc;border:1px solid #e5e7eb;border-radius:13px;padding:12px;margin:9px 0}.dayhead{display:flex;justify-content:space-between;font-weight:750}
+.tx{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #e5e7eb;gap:10px}.tx:last-child{border:0}.muted{color:#6b7280;font-size:13px}
+.bar{display:grid;grid-template-columns:60px 1fr 80px;gap:8px;align-items:center;margin:9px 0;font-size:12px}.barbg{height:16px;background:#dbeafe;border-radius:20px;overflow:hidden}.barfill{height:100%;background:#2563eb}
+.accounts{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.account{background:#fff;border:1px solid #e5e7eb;border-radius:15px;padding:14px}.account b{display:block;font-size:15px}.account .bal{font-size:21px;font-weight:800;margin-top:7px}
+.accountSetup{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}.accountSetup input{min-width:0}
+@media(max-width:620px){.grid,.accounts{grid-template-columns:1fr}.accountSetup{grid-template-columns:1fr}.formgrid{grid-template-columns:1fr 1fr}.app{padding:12px}.card{padding:14px}}
+</style>
+</head>
+<body>
+<div class="app">
+<div class="title">💰 Money Tracker</div><div class="sub">Income, expenses and account-wise balances</div>
+
+<div class="card">
+<h3 style="margin-top:0">🏦 My Bank Accounts</h3>
+<div class="accountSetup">
+<input id="a1name" placeholder="Account 1 name">
+<input id="a2name" placeholder="Account 2 name">
+<input id="a3name" placeholder="Account 3 name">
+</div>
+<button id="saveNames" style="margin-top:10px">Save Account Names</button>
+<div id="accounts" class="accounts" style="margin-top:12px"></div>
+</div>
+
+<div class="card"><div class="grid">
+<div class="stat"><div class="label">TOTAL BALANCE</div><div id="balance" class="num">₹0</div></div>
+<div class="stat"><div class="label">TOTAL INCOME</div><div id="income" class="num green">₹0</div></div>
+<div class="stat"><div class="label">TOTAL EXPENSE</div><div id="expense" class="num red">₹0</div></div>
+</div></div>
+
+<div class="card"><h3>Add Transaction</h3>
+<form id="form">
+<div class="formgrid">
+<select id="type"><option value="expense">Expense</option><option value="income">Income</option><option value="transfer">Transfer</option></select>
+<input id="amount" type="number" min="0.01" step="0.01" placeholder="Amount ₹" required>
+</div><br>
+<div class="formgrid">
+<select id="category"><option>Food</option><option>Fuel</option><option>Travel</option><option>Shopping</option><option>Bills</option><option>Rent</option><option>Entertainment</option><option>Health</option><option>Salary</option><option>Other</option></select>
+<select id="account"></select>
+</div><br>
+<div id="toWrap" style="display:none"><select id="toAccount"></select><br><br></div>
+<div class="formgrid"><input id="date" type="date" required><input id="note" placeholder="Note (optional)"></div><br>
+<button class="primary">+ Add Transaction</button>
+</form><div id="msg" class="muted"></div>
+</div>
+
+<div class="card"><div class="month"><button id="prev">‹</button><div style="text-align:center"><b id="month"></b><div class="muted">Monthly summary</div></div><button id="next">›</button></div></div>
+
+<div class="card"><h3>📅 Daily Breakdown</h3><div id="days"></div></div>
+<div class="card"><h3>📊 Monthly Expense Chart</h3><div id="chart"></div></div>
+
+<div class="card"><h3>🏁 Monthly Grand Total</h3><div class="grid">
+<div class="stat"><div class="label">INCOME</div><div id="mi" class="num green">₹0</div></div>
+<div class="stat"><div class="label">EXPENSE</div><div id="me" class="num red">₹0</div></div>
+<div class="stat"><div class="label">NET</div><div id="mn" class="num">₹0</div></div>
+</div></div>
+
+<div class="card"><h3>🧾 Today's Transactions</h3><div id="today"></div><br><button id="clear">Clear all saved data</button></div>
+</div>
+
+<script>
+const KEY="money_tracker_v2";
+let data=[],view=new Date();
+let accounts=["Bank Account 1","Bank Account 2","Bank Account 3"];
+const $=id=>document.getElementById(id);
+const money=n=>"₹"+Number(n||0).toLocaleString("en-IN",{maximumFractionDigits:2});
+const iso=d=>new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())).toISOString().slice(0,10);
+const esc=s=>String(s||"").replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+function load(){
+ try{
+  data=JSON.parse(localStorage.getItem(KEY)||"[]");
+  accounts=JSON.parse(localStorage.getItem(KEY+"_accounts")||'["Bank Account 1","Bank Account 2","Bank Account 3"]');
+  if(!Array.isArray(accounts)||accounts.length!==3)accounts=["Bank Account 1","Bank Account 2","Bank Account 3"];
+ }catch(e){data=[]}
+}
+function save(){localStorage.setItem(KEY,JSON.stringify(data));localStorage.setItem(KEY+"_accounts",JSON.stringify(accounts))}
+function fillAccounts(){
+ ["account","toAccount"].forEach(id=>{
+  $(id).innerHTML=accounts.map((a,i)=>`<option value="${i}">${esc(a)}</option>`).join("");
+ });
+ $("a1name").value=accounts[0];$("a2name").value=accounts[1];$("a3name").value=accounts[2];
+}
+function accountBalances(){
+ const b=[0,0,0];
+ data.forEach(x=>{
+  if(x.type==="income")b[Number(x.account)]+=x.amount;
+  else if(x.type==="expense")b[Number(x.account)]-=x.amount;
+  else if(x.type==="transfer"){b[Number(x.account)]-=x.amount;b[Number(x.toAccount)]+=x.amount;}
+ });
+ return b;
+}
+function renderAccounts(){
+ const b=accountBalances();
+ $("accounts").innerHTML=accounts.map((a,i)=>`<div class="account"><b>🏦 ${esc(a)}</b><div class="bal">${money(b[i])}</div><div class="muted">Current balance</div></div>`).join("");
+}
+function render(){
+ renderAccounts();
+ let inc=0,exp=0;
+ data.forEach(x=>{if(x.type==="income")inc+=x.amount;else if(x.type==="expense")exp+=x.amount});
+ $("income").textContent=money(inc);$("expense").textContent=money(exp);$("balance").textContent=money(inc-exp);
+ $("month").textContent=view.toLocaleString("en-IN",{month:"long",year:"numeric"});
+ let mk=view.getFullYear()+"-"+String(view.getMonth()+1).padStart(2,"0");
+ let rows=data.filter(x=>x.date.startsWith(mk)).sort((a,b)=>a.date.localeCompare(b.date)||a.id-b.id);
+ let mi=0,me=0,groups={};
+ rows.forEach(x=>{
+  if(x.type==="income")mi+=x.amount; else if(x.type==="expense")me+=x.amount;
+  (groups[x.date]??=[]).push(x)
+ });
+ $("mi").textContent=money(mi);$("me").textContent=money(me);$("mn").textContent=money(mi-me);
+ let dates=Object.keys(groups).sort().reverse();
+ $("days").innerHTML=dates.length?dates.map(d=>{
+  let di=0,de=0;
+  groups[d].forEach(x=>{if(x.type==="income")di+=x.amount;else if(x.type==="expense")de+=x.amount});
+  return `<div class="day"><div class="dayhead"><span>${new Date(d+"T00:00:00").toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"})}</span><span class="red">${money(de)}</span></div>`+
+  groups[d].map(x=>{
+   let label=x.type==="transfer"?`Transfer: ${accounts[Number(x.account)]} → ${accounts[Number(x.toAccount)]}`:esc(x.note||x.category);
+   let sign=x.type==="income"?"+":x.type==="expense"?"-":"↔";
+   let cls=x.type==="income"?"green":x.type==="expense"?"red":"";
+   return `<div class="tx"><div><b>${label}</b><div class="muted">${x.type==="transfer"?"Internal transfer":esc(x.category)} • ${esc(accounts[Number(x.account)])}</div></div><b class="${cls}">${sign}${money(x.amount)}</b></div>`;
+  }).join("")+
+  `<div class="muted" style="padding-top:8px">Daily income: <b class="green">${money(di)}</b> &nbsp; Daily expense: <b class="red">${money(de)}</b> &nbsp; Net: <b>${money(di-de)}</b></div></div>`
+ }).join(""):"<div class='muted'>No transactions this month.</div>";
+ let vals=Object.entries(groups).map(([d,r])=>[d,r.reduce((s,x)=>s+(x.type==="expense"?x.amount:0),0)]).filter(x=>x[1]>0),max=Math.max(1,...vals.map(x=>x[1]));
+ $("chart").innerHTML=vals.length?vals.map(x=>`<div class="bar"><span>${x[0].slice(8)}</span><div class="barbg"><div class="barfill" style="width:${x[1]/max*100}%"></div></div><b>${money(x[1])}</b></div>`).join(""):"<div class='muted'>No expenses for this month.</div>";
+ let t=iso(new Date()),tr=data.filter(x=>x.date===t).sort((a,b)=>b.id-a.id);
+ $("today").innerHTML=tr.length?tr.map(x=>{
+  let label=x.type==="transfer"?`Transfer: ${accounts[Number(x.account)]} → ${accounts[Number(x.toAccount)]}`:esc(x.note||x.category);
+  let sign=x.type==="income"?"+":x.type==="expense"?"-":"↔",cls=x.type==="income"?"green":x.type==="expense"?"red":"";
+  return `<div class="tx"><div><b>${label}</b><div class="muted">${x.type==="transfer"?"Internal transfer":esc(x.category)} • ${esc(accounts[Number(x.account)])}</div></div><b class="${cls}">${sign}${money(x.amount)}</b></div>`;
+ }).join(""):"<div class='muted'>No transactions today.</div>";
+}
+$("type").addEventListener("change",()=>{
+ const transfer=$("type").value==="transfer";
+ $("toWrap").style.display=transfer?"block":"none";
+ $("category").disabled=transfer;
+});
+$("form").addEventListener("submit",e=>{
+ e.preventDefault();
+ let a=Number($("amount").value),from=Number($("account").value),to=Number($("toAccount").value);
+ if(!a||a<=0){$("msg").textContent="Enter a valid amount.";return}
+ if($("type").value==="transfer"&&from===to){$("msg").textContent="Choose two different accounts for a transfer.";return}
+ data.push({id:Date.now(),type:$("type").value,amount:a,category:$("category").value,account:from,toAccount:to,date:$("date").value,note:$("note").value.trim()});
+ save();$("amount").value="";$("note").value="";$("msg").textContent="Saved ✓";render();setTimeout(()=>$("msg").textContent="",1200)
+});
+$("saveNames").onclick=()=>{
+ let names=[$("a1name").value.trim(),$("a2name").value.trim(),$("a3name").value.trim()];
+ names=names.map((n,i)=>n||("Bank Account "+(i+1)));accounts=names;save();fillAccounts();render();$("msg").textContent="Account names saved.";
+};
+$("prev").onclick=()=>{view.setMonth(view.getMonth()-1);render()};
+$("next").onclick=()=>{view.setMonth(view.getMonth()+1);render()};
+$("clear").onclick=()=>{if(confirm("Delete all saved transactions and account names?")){data=[];save();render()}};
+$("date").value=iso(new Date());load();fillAccounts();render();
+</script>
+</body>
+</html>
